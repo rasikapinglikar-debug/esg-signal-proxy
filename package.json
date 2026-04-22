@@ -1,7 +1,7 @@
 {
   "name": "esg-signal-proxy",
-  "version": "1.0.0",
-  "description": "NewsAPI CORS proxy for ESG Signal",
+  "version": "2.0.0",
+  "description": "NewsAPI proxy + daily ESG digest alerts for ESG Signal",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -9,7 +9,8 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.18.2",
-    "node-fetch": "^2.7.0"
+    "node-fetch": "^2.7.0",
+    "node-cron": "^3.0.3"
   },
   "engines": {
     "node": ">=18"

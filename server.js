@@ -1,613 +1,653 @@
-const express  = require('express');
-const cors     = require('cors');
-const fetch    = require('node-fetch');
-const cron     = require('node-cron');
+const express = require('express');
+const cors    = require('cors');
+const fetch   = require('node-fetch');
+const cron    = require('node-cron');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-// ── ENV VARS — set all in Render dashboard ──
-const NEWS_API_KEY   = process.env.NEWS_API_KEY;
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const ALERT_EMAIL    = process.env.ALERT_EMAIL;
-const FROM_EMAIL     = process.env.FROM_EMAIL || 'ESG Signal <onboarding@resend.dev>';
-const TRIGGER_SECRET = process.env.TRIGGER_SECRET || 'esg-trigger-2025';
-
 app.use(cors());
 app.use(express.json());
 
-// ════════════════════════════════════
-//  YOUR ACTUAL 550 COMPANY LIST
-// ════════════════════════════════════
-const COMPANY_550 = [
-  "BlackRock",
-  "Vanguard Group",
-  "Fidelity Investments",
-  "State Street Global",
-  "J.P. Morgan Chase",
-  "UBS",
-  "Capital Group",
-  "Allianz Group",
-  "Amundi",
-  "BNY Investments",
-  "Invesco",
-  "Legal & General Group",
-  "Franklin Templeton",
-  "Prudential Financial",
-  "T. Rowe Price Group",
-  "Northern Trust",
-  "BNP Paribas",
-  "Natixis Investment Managers",
-  "Wellington Management",
-  "Nuveen",
-  "Geode Capital Management",
-  "Ameriprise Financial",
-  "Charles Schwab Investment",
-  "Sun Life Financial",
-  "AXA Group",
-  "Blackstone",
-  "Power Financial",
-  "Deutsche Bank",
-  "Brookfield Asset Management",
-  "Aegon Group",
-  "Manulife",
-  "Sumitomo Mitsui Trust Holdings",
-  "Schroders",
-  "Fidelity International",
-  "Royal Bank of Canada",
-  "Mitsubishi UFJ Financial Group",
-  "Federated Hermes",
-  "HSBC Holdings",
-  "Principal Financial",
-  "New York Life Investments",
-  "Dimensional Fund Advisors",
-  "Affiliated Managers Group",
-  "Macquarie Group",
-  "MetLife Investment Management",
-  "Nippon Life Insurance",
-  "Generali Group",
-  "KKR",
-  "Nomura Asset Management",
-  "Allspring Global Investments",
-  "Union Investment",
-  "MassMutual",
-  "Intesa Sanpaolo",
-  "Abrdn",
-  "Credit Suisse",
-  "Neuberger Berman",
-  "Voya Financial",
-  "Dai-ichi Life Holdings",
-  "Asset Management One",
-  "U.S. Bancorp",
-  "LBBW",
-  "Mercer",
-  "Ares Management",
-  "Nordea",
-  "M&G Investments",
-  "Zenkyoren",
-  "MEAG",
-  "Dodge & Cox",
-  "SEI Investments",
-  "TD Global Invest. Solutions",
-  "Janus Henderson Group",
-  "Shinkin Central Bank",
-  "Jackson Financial",
-  "Meiji Yasuda Life Insurance",
-  "Societe Generale",
-  "Swiss Life Asset Managers",
-  "Russell Investments",
-  "Zurcher Kantonalbank",
-  "Aviva",
-  "Baillie Gifford",
-  "NISA Investment",
-  "Prudential",
-  "Pictet Asset Management",
-  "Dekabank Group",
-  "Zurich Financial Services",
-  "Sumitomo Life Insurance",
-  "BMO Wealth Management",
-  "Lazard",
-  "Samsung Group",
-  "Banco Santander",
-  "Scotiabank",
-  "Fisher Investments",
-  "SEB",
-  "Guggenheim Investments",
-  "American Century",
-  "CIBC Asset Management",
-  "Raymond James",
-  "Conning",
-  "St. James's Place",
-  "Robert W. Baird",
-  "Anima Holding Italy",
-  "Achmea",
-  "TCW Group",
-  "KBC Group",
-  "Royal London Group",
-  "CVC Capital Partners",
-  "Mesirow",
-  "Resona Holdings",
-  "OFI AM",
-  "Swedbank",
-  "Robeco Group",
-  "PNC Financial",
-  "Caixabank",
-  "Landesbank Hessen-Thuringen",
-  "Danske Bank",
-  "Virtus Investment Partners",
-  "EFG International",
-  "Man Group",
-  "Union Bancaire Privee",
-  "Victory Capital",
-  "WTW",
-  "BBVA",
-  "Mn Services",
-  "Payden & Rygel",
-  "Artisan Partners",
-  "Talanx Group",
-  "StepStone Group",
-  "CBRE Investment Management",
-  "Partners Group",
-  "IFM Investors",
-  "Vontobel Asset Management",
-  "Credit Mutuel",
-  "F Van Lanschot",
-  "Sumitomo Mitsui Financial Group",
-  "PRIMECAP",
-  "BCV",
-  "Hightower Advisors",
-  "Fiera Capital",
-  "ASR",
-  "Rothschild",
-  "Storebrand Group",
-  "Mirae Asset Financial Group",
-  "Aon",
-  "Bayerischen Landesbank",
-  "Starwood Capital",
-  "OP Financial Group",
-  "IDUNA Gruppe",
-  "Groupama Asset Management",
-  "Swiss Re",
-  "RhumbLine Advisers",
-  "Acadian",
-  "LGT Capital Partners",
-  "KB Asset Management",
-  "Svenska Handelsbanken",
-  "EQT",
-  "Goldman Sachs Asset Management",
-  "HPS Investment Partners",
-  "TPG",
-  "The Carlyle Group",
-  "Thoma Bravo",
-  "Advent International",
-  "Warburg Pincus",
-  "Hg",
-  "Clayton Dubilier & Rice",
-  "Apollo Global Management",
-  "Intermediate Capital Group",
-  "Silver Lake",
-  "Hellman & Friedman",
-  "Oaktree Capital Management",
-  "Vista Equity Partners",
-  "AXA IM ALTS",
-  "General Atlantic",
-  "Clearlake Capital Group",
-  "Leonard Green & Partners",
-  "Apogem Capital Partners",
-  "TA Associates",
-  "Pacific Investment Management Company",
-  "Permira Advisers",
-  "Bain Capital",
-  "Sixth Street",
-  "Insight Partners",
-  "Cinven",
-  "Genstar Capital",
-  "PGIM Private Alternatives",
-  "Fortress Investment Group",
-  "Blue Owl Capital",
-  "Oak Hill Advisors",
-  "Francisco Partners",
-  "Barings",
-  "Andreessen Horowitz",
-  "Cerberus Capital Management",
-  "American Securities",
-  "Tiger Global Management",
-  "BSP-Alcentra",
-  "Bridgepoint",
-  "GTCR",
-  "BDT & MSD Partners",
-  "New Mountain Capital",
-  "Nordic Capital",
-  "L Catterton",
-  "Platinum Equity",
-  "Stone Point Capital",
-  "Crescent Capital Group",
-  "Adams Street Partners",
-  "Angelo Gordon",
-  "PSG",
-  "Ardian",
-  "Pemberton Asset Management",
-  "Arcmont Asset Management",
-  "Golub Capital",
-  "Veritas Capital",
-  "HarbourVest Partners",
-  "Astorg",
-  "KPS Capital Partners",
-  "PAG",
-  "Antares Capital",
-  "Hayfin Capital Management",
-  "Summit Partners",
-  "Hillhouse Capital Group",
-  "The Jordan Company",
-  "H.I.G. Capital",
-  "Apax Partners",
-  "Accel-KKR",
-  "GoldenTree Asset Management",
-  "Thomas H. Lee Partners",
-  "Hamilton Lane",
-  "Churchill Asset Management",
-  "Vitruvian Partners",
-  "Lightspeed Venture Partners",
-  "TSG Consumer Partners",
-  "AllianceBernstein",
-  "BC Partners",
-  "Eurazeo",
-  "Castlelake",
-  "Crestline Investors",
-  "Värde Partners",
-  "PAI Partners",
-  "TCV",
-  "Tikehau Capital",
-  "InterVest Capital Partners",
-  "Morgan Stanley Investment Management",
-  "Farallon Capital Management",
-  "MBK Partners",
-  "CVC Credit Partners",
-  "EIG",
-  "Bregal Investments",
-  "Albacore Capital Group",
-  "IK Partners",
-  "Altor Equity Partners",
-  "Kohlberg & Company",
-  "Park Square Capital",
-  "Vista Credit Partners",
-  "Liontrust",
-  "Aberdeen Investments",
-  "Sarasin & Partners",
-  "Lombard Odier Investment Mgmt",
-  "Sycomore Asset Management",
-  "Carmignac",
-  "AXA Investment Managers",
-  "DWS Group",
-  "Flossbach von Storch",
-  "Bank of America",
-  "Citigroup",
-  "Wells Fargo",
-  "Toronto-Dominion Bank",
-  "Bank of Nova Scotia",
-  "National Bank of Canada",
-  "Desjardins Group",
-  "Groupe BPCE / Natixis",
-  "DZ Bank",
-  "KfW",
-  "First Abu Dhabi Bank",
-  "Emirates NBD",
-  "Saudi National Bank",
-  "Al Rajhi Bank",
-  "Abu Dhabi Commercial Bank",
-  "Dubai Islamic Bank",
-  "Mashreq Bank",
-  "Truist Financial",
-  "SpareBank 1",
-  "Jyske Bank",
-  "Nykredit",
-  "Bunq",
-  "ASN Bank",
-  "Belfius",
-  "Fifth Third Bancorp",
-  "KeyCorp",
-  "Helaba",
-  "South Pole",
-  "ERM (Environmental Resources Mgmt)",
-  "WSP Global",
-  "DNV",
-  "Carbon Trust",
-  "Systemiq",
-  "Pollination",
-  "Anthesis Group",
-  "Vivid Economics (McKinsey)",
-  "Frontier Economics",
-  "Cambridge Econometrics",
-  "2° Investing Initiative",
-  "Quantis",
-  "Morrow Sodali",
-  "Georgeson",
-  "FTI Consulting (ESG)",
-  "Alvarez & Marsal (ESG)",
-  "L.E.K. Consulting",
-  "Strategy& (PwC)",
-  "Charles River Associates",
-  "Cornerstone Research",
-  "Drees & Sommer",
-  "I Care & Consult",
-  "Goodwin Procter",
-  "Milbank",
-  "Fried Frank",
-  "Schulte Roth & Zabel",
-  "Morgan Lewis",
-  "K&L Gates",
-  "Vedder Price",
-  "Winston & Strawn",
-  "Vinson & Elkins",
-  "Baker Botts",
-  "Arnold & Porter",
-  "Covington & Burling",
-  "Akin Gump",
-  "Shearman & Sterling (A&O Shearman)",
-  "Cravath Swaine & Moore",
-  "Cahill Gordon & Reindel",
-  "Gibson Dunn",
-  "Seward & Kissel",
-  "Troutman Pepper",
-  "Hunton Andrews Kurth",
-  "Simmons & Simmons",
-  "Taylor Wessing",
-  "Burges Salmon",
-  "Bird & Bird",
-  "Stephenson Harwood",
-  "Mishcon de Reya",
-  "Clyde & Co",
-  "HFW (Holman Fenwick Willan)",
-  "Reed Smith",
-  "Squire Patton Boggs",
-  "DLA Piper",
-  "Osler Hoskin & Harcourt",
-  "Blake Cassels & Graydon",
-  "Bennett Jones",
-  "McCarthy Tetrault",
-  "Stikeman Elliott",
-  "Fasken",
-  "Gowling WLG",
-  "Al Tamimi & Company",
-  "Hadef & Partners",
-  "King & Spalding ME",
-  "Al Busaidy Mansoor Jamal",
-  "Khoshaim & Associates",
-  "CMS Francis Lefebvre",
-  "August & Debouzy",
-  "Joffe & Associes",
-  "Fidal",
-  "Freshfields Germany",
-  "Houthoff",
-  "Elvinger Hoss Prussen",
-  "Arendt & Medernach",
-  "Wildgen",
-  "BSP (Bonn Steichen & Partners)",
-  "Florida State Board of Administration",
-  "Texas Teachers Retirement System",
-  "Wisconsin Investment Board",
-  "New Jersey Division of Investment",
-  "Massachusetts PRIM",
-  "North Carolina Retirement",
-  "Virginia Retirement System",
-  "Oregon Investment Council",
-  "Ohio Public Employees Retirement",
-  "Minnesota State Board of Investment",
-  "Colorado PERA",
-  "Michigan Retirement Systems",
-  "PSERS Pennsylvania",
-  "NYC Employees Retirement System",
-  "NYC Teachers Retirement System",
-  "Illinois Teachers Retirement",
-  "Maryland State Retirement",
-  "Arizona State Retirement",
-  "Iowa Public Employees Retirement",
-  "Connecticut Retirement Plans",
-  "Los Angeles City Employees Retirement",
-  "PSP Investments",
-  "Healthcare of Ontario Pension (HOOPP)",
-  "Investment Management Corp Ontario (IMCO)",
-  "OPTrust",
-  "Caisse de depot et placement (CDPQ)",
-  "BT Pension Scheme",
-  "LGPS Central",
-  "Northern LGPS",
-  "Brunel Pension Partnership",
-  "Borders to Coast Pension Partnership",
-  "ACCESS Pool",
-  "LGPS Wales (Wales Pension Partnership)",
-  "Greater Manchester Pension Fund",
-  "West Midlands Pension Fund",
-  "Strathclyde Pension Fund",
-  "Lothian Pension Fund",
-  "London Pensions Fund Authority (LPFA)",
-  "London CIV",
-  "PMT (Metalektro)",
-  "PME (Metaalindustrie)",
-  "bpfBOUW",
-  "PFZW",
-  "AP1 (First AP Fund)",
-  "AP2 (Second AP Fund)",
-  "AP3 (Third AP Fund)",
-  "AP4 (Fourth AP Fund)",
-  "Keva",
-  "Elo",
-  "Caisse des Dépôts",
-  "ERAFP",
-  "FRR (Fonds de Reserve)",
-  "Agirc-Arrco",
-  "Bayerische Versorgungskammer (BVK)",
-  "VBL (Versorgungsanstalt)",
-  "Abu Dhabi Investment Authority (ADIA)",
-  "Investment Corporation of Dubai (ICD)",
-  "Hassana Investment (GOSI)",
-  "Oman Investment Authority (OIA)",
-  "Mumtalakat (Bahrain)",
-  "Emirates Investment Authority",
-  "Abu Dhabi Investment Council (ADIC)",
-  "Sanabil Investments (PIF sub)",
-  "Pennsylvania Public School Employees Retirement (PSERS)",
-  "Ohio State Teachers Retirement System (STRS Ohio)",
-  "Tennessee Consolidated Retirement System",
-  "Georgia Teachers Retirement System",
-  "South Carolina Retirement System",
-  "Indiana Public Retirement System (INPRS)",
-  "Missouri State Employees Retirement System (MOSERS)",
-  "Kansas Public Employees Retirement System (KPERS)",
-  "Montana Board of Investments",
-  "Nevada Public Employees Retirement System (NVPERS)",
-  "Utah Retirement Systems",
-  "Delaware Public Employees Retirement System",
-  "Rhode Island Employees Retirement System",
-  "Maine Public Employees Retirement System (MainePERS)",
-  "New Hampshire Retirement System",
-  "Oklahoma Teachers Retirement System",
-  "Dallas Police and Fire Pension System",
-  "Los Angeles Fire and Police Pensions (LAFPP)",
-  "San Diego City Employees Retirement System (SDCERS)",
-  "Sacramento County Employees' Retirement System (SCERS)",
-  "Contra Costa County Employees Retirement Association (CCCERA)",
-  "Marin County Employees Retirement Association (MCERA)",
-  "New York City Board of Education Retirement System (BERS)",
-  "Illinois Municipal Retirement Fund (IMRF)",
-  "Chicago Teachers Pension Fund (CTPF)",
-  "Texas Municipal Retirement System (TMRS)",
-  "Public Employee Retirement System of Idaho (PERSI)",
-  "Wyoming Retirement System",
-  "Vermont Pension Investment Committee (VPIC)",
-  "CAAT Pension Plan",
-  "Colleges of Applied Arts and Technology (CAAT)",
-  "Alberta Teachers Retirement Fund (ATRF)",
-  "Municipal Employees Pension Plan (MEPP) Saskatchewan",
-  "Manitoba Teachers' Society Pension Plan",
-  "Régime de retraite du personnel d'encadrement (RRPE)",
-  "Fonds de solidarité FTQ",
-  "Fondaction (CSN)",
-  "Pension Protection Fund (PPF)",
-  "National Employment Savings Trust (NEST)",
-  "Shell Contributory Pension Fund",
-  "BP Pension Fund",
-  "Rolls-Royce UK Pension Fund",
-  "BT Pension Scheme (BTPS)",
-  "Sainsbury's Pension Scheme",
-  "Marks & Spencer Pension Scheme",
-  "Unilever UK Pension Fund",
-  "Pearson Pension Plan",
-  "National Grid UK Pension Scheme",
-  "Centrica Pension Scheme",
-  "Tesco PLC Pension Scheme",
-  "Smart Pension",
-  "Cushon",
-  "People's Partnership (The People's Pension)",
-  "NOW: Pensions",
-  "Scottish Widows Master Trust",
-  "Pensioenfonds Detailhandel",
-  "Pensioenfonds Zoetwaren",
-  "Pensioenfonds Horeca & Catering",
-  "Pensioenfonds Vervoer",
-  "Pensioenfonds Medisch Specialisten",
-  "Pensioenfonds Huisartsen",
-  "Pensioenfonds Vliegverkeer (PFVV)",
-  "Stichting Pensioenfonds Openbaar Vervoer (SPOV)",
-  "Kommunal Landspensjonskasse (KLP)",
-  "Statens pensjonsfond utland (GPFG / Oil Fund)",
-  "Statens pensjonsfond Norge (GPFN)",
-  "PFA Pension",
-  "AP Pension",
-  "Sampension",
-  "Lærernes Pension (LP)",
-  "Topdanmark Pension",
-  "Skandia (Sweden)",
-  "Länsförsäkringar (Sweden)",
-  "Fjärde AP-fonden (AP4)",
-  "SPP Fonder",
-  "Avanza Pension (Sweden)",
-  "Mandatum Life (Finland)",
-  "LocalTapiola (Finland)",
-  "Malakoff Humanis",
-  "AG2R La Mondiale",
-  "Ircantec",
-  "CNAV (Caisse Nationale d'Assurance Vieillesse)",
-  "Préfon-Retraite",
-  "Pro BTP",
-  "Klesia",
-  "Apicil Group",
-  "Agrica",
-  "DEVK Versicherungen",
-  "Signal Iduna",
-  "R+V Versicherung",
-  "Debeka",
-  "HUK-Coburg",
-  "Württembergische Versicherung (W&W Group)",
-  "Provinzial Rheinland",
-  "Sparkassen-Versicherung",
-  "KZVK (Kirchliche Zusatzversorgungskasse)",
-  "EZVK (Evangelische Zusatzversorgungskasse)",
-  "ASGA Pensionskasse",
-  "Pensionskasse der Swisscom",
-  "Bâloise (Baloise Sammelstiftung)",
-  "Helvetia Sammelstiftung",
-  "Swiss Life Sammelstiftung",
-  "Nest Sammelstiftung",
-  "Ethos Foundation / Ethos Services",
-  "Ireland Strategic Investment Fund (ISIF)",
-  "National Pensions Reserve Fund (NPRF successor)",
-  "Irish Life Investment Managers (ILIM)",
-  "Davy Asset Management",
-  "Ethias",
-  "Integrale",
-  "General Organization for Social Insurance (GOSI)",
-  "Abu Dhabi Pension Fund (ADPF)",
-  "Public Pension Agency Saudi Arabia (PPA)",
-  "Social Insurance Investment Portfolio (Bahrain)",
-  "PKA",
-  "ATP"
+// ── ENV VARS (set in Render dashboard) ──
+const NEWS_API_KEY   = process.env.NEWS_API_KEY;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const TRIGGER_SECRET = process.env.TRIGGER_SECRET || 'esg-trigger-2025';
+const FROM_EMAIL     = process.env.FROM_EMAIL || 'ESG Signal <onboarding@resend.dev>';
+
+// ── AE EMAILS: add these in Render when ready ──
+// AE4_EMAIL, AE5_EMAIL, DAVE_EMAIL, JAKE_EMAIL, JIM_EMAIL, LUCAS_EMAIL
+// MANAGER_EMAIL = gets full digest of ALL matches across all AEs
+function getAEEmails() {
+  return {
+    AE4:   process.env.AE4_EMAIL,
+    AE5:   process.env.AE5_EMAIL,
+    Dave:  process.env.DAVE_EMAIL,
+    Jake:  process.env.JAKE_EMAIL,
+    Jim:   process.env.JIM_EMAIL,
+    Lucas: process.env.LUCAS_EMAIL,
+  };
+}
+
+// ── AE COMPANY ASSIGNMENTS ──
+const AE_ASSIGNMENTS = {
+  "AE4": [
+    "BlackRock",
+    "Vanguard Group",
+    "Fidelity Investments",
+    "BNY Investments",
+    "Invesco",
+    "Franklin Templeton",
+    "Prudential Financial",
+    "T. Rowe Price Group",
+    "Northern Trust",
+    "Geode Capital Management",
+    "Ameriprise Financial",
+    "Charles Schwab Investment",
+    "Blackstone",
+    "Power Financial",
+    "Federated Hermes",
+    "Principal Financial",
+    "New York Life Investments",
+    "Dimensional Fund Advisors",
+    "Affiliated Managers Group",
+    "Allspring Global Investments",
+    "MassMutual",
+    "Neuberger Berman",
+    "Voya Financial",
+    "U.S. Bancorp",
+    "Mercer",
+    "Dodge & Cox",
+    "SEI Investments",
+    "Jackson Financial",
+    "Russell Investments",
+    "NISA Investment",
+    "Lazard",
+    "Fisher Investments",
+    "Guggenheim Investments",
+    "American Century",
+    "Raymond James",
+    "Conning",
+    "Robert W. Baird",
+    "TCW Group",
+    "Mesirow",
+    "Payden & Rygel",
+    "Artisan Partners",
+    "StepStone Group",
+    "Massachusetts PRIM",
+    "Minnesota State Board of Investment",
+    "NYC Teachers Retirement System",
+    "Connecticut Retirement Plans",
+    "OPTrust",
+    "Northern LGPS",
+    "Greater Manchester Pension Fund",
+    "London CIV",
+    "AP1 (First AP Fund)",
+    "Elo",
+    "ERAFP",
+    "Abu Dhabi Investment Authority (ADIA)",
+    "Emirates Investment Authority",
+    "Colleges of Applied Arts and Technology (CAAT)",
+    "Fonds de solidarité FTQ",
+    "BP Pension Fund",
+    "Unilever UK Pension Fund",
+    "Smart Pension",
+    "Pensioenfonds Detailhandel",
+    "Statens pensjonsfond Norge (GPFN)",
+    "Ircantec",
+    "Apicil Group",
+    "KZVK (Kirchliche Zusatzversorgungskasse)",
+    "Helvetia Sammelstiftung",
+    "PKA",
+    "Indiana Public Retirement System (INPRS)",
+    "Utah Retirement Systems",
+    "Oklahoma Teachers Retirement System",
+    "Contra Costa County Employees Retirement Association (CCCERA)",
+    "Texas Municipal Retirement System (TMRS)",
+    "Pensioenfonds Huisartsen",
+    "Topdanmark Pension",
+    "Avanza Pension (Sweden)",
+    "Debeka",
+    "National Pensions Reserve Fund (NPRF successor)",
+    "General Organization for Social Insurance (GOSI)",
+    "Morgan Lewis",
+    "Baker Botts",
+    "Cravath Swaine & Moore",
+    "Hunton Andrews Kurth",
+    "Stephenson Harwood",
+    "McCarthy Tetrault",
+    "Hadef & Partners",
+    "Khoshaim & Associates",
+    "Freshfields Germany",
+    "BSP (Bonn Steichen & Partners)",
+    "South Pole",
+    "Carbon Trust",
+    "Frontier Economics",
+    "Georgeson",
+    "Drees & Sommer",
+    "Bank of America",
+    "First Abu Dhabi Bank",
+    "National Bank of Canada",
+    "Dubai Islamic Bank",
+    "Nykredit",
+    "KeyCorp"
+  ],
+  "AE5": [
+    "PNC Financial",
+    "Virtus Investment Partners",
+    "Victory Capital",
+    "CBRE Investment Management",
+    "PRIMECAP",
+    "Hightower Advisors",
+    "Starwood Capital",
+    "RhumbLine Advisers",
+    "Acadian",
+    "TPG",
+    "Thoma Bravo",
+    "Warburg Pincus",
+    "Apollo Global Management",
+    "Oaktree Capital Management",
+    "Vista Equity Partners",
+    "General Atlantic",
+    "Leonard Green & Partners",
+    "Apogem Capital Partners",
+    "TA Associates",
+    "Sixth Street",
+    "Insight Partners",
+    "Fortress Investment Group",
+    "Oak Hill Advisors",
+    "Andreessen Horowitz",
+    "Cerberus Capital Management",
+    "American Securities",
+    "Tiger Global Management",
+    "BSP-Alcentra",
+    "BDT & MSD Partners",
+    "L Catterton",
+    "Stone Point Capital",
+    "Crescent Capital Group",
+    "Angelo Gordon",
+    "PSG",
+    "KPS Capital Partners",
+    "Summit Partners",
+    "The Jordan Company",
+    "Churchill Asset Management",
+    "Lightspeed Venture Partners",
+    "TSG Consumer Partners",
+    "Castlelake",
+    "InterVest Capital Partners",
+    "Farallon Capital Management",
+    "Vista Credit Partners",
+    "Citigroup",
+    "Emirates NBD",
+    "Mashreq Bank",
+    "Bunq",
+    "Helaba",
+    "Systemiq",
+    "Cambridge Econometrics",
+    "FTI Consulting (ESG)",
+    "I Care & Consult",
+    "K&L Gates",
+    "Arnold & Porter",
+    "Cahill Gordon & Reindel",
+    "Simmons & Simmons",
+    "Mishcon de Reya",
+    "DLA Piper",
+    "Stikeman Elliott",
+    "King & Spalding ME",
+    "Houthoff",
+    "Florida State Board of Administration",
+    "North Carolina Retirement",
+    "Colorado PERA",
+    "Illinois Teachers Retirement",
+    "Los Angeles City Employees Retirement",
+    "Caisse de depot et placement (CDPQ)",
+    "Brunel Pension Partnership",
+    "West Midlands Pension Fund",
+    "PMT (Metalektro)",
+    "AP2 (Second AP Fund)",
+    "FRR (Fonds de Reserve)",
+    "Investment Corporation of Dubai (ICD)",
+    "Abu Dhabi Investment Council (ADIC)",
+    "Pennsylvania Public School Employees Retirement (PSERS)",
+    "Ohio State Teachers Retirement System (STRS Ohio)",
+    "Missouri State Employees Retirement System (MOSERS)",
+    "Delaware Public Employees Retirement System",
+    "Dallas Police and Fire Pension System",
+    "Marin County Employees Retirement Association (MCERA)",
+    "Public Employee Retirement System of Idaho (PERSI)",
+    "Alberta Teachers Retirement Fund (ATRF)",
+    "Fondaction (CSN)",
+    "Rolls-Royce UK Pension Fund",
+    "Pearson Pension Plan",
+    "Cushon",
+    "Pensioenfonds Zoetwaren",
+    "Pensioenfonds Vliegverkeer (PFVV)",
+    "PFA Pension",
+    "Skandia (Sweden)",
+    "Mandatum Life (Finland)",
+    "CNAV (Caisse Nationale d'Assurance Vieillesse)",
+    "Agrica",
+    "HUK-Coburg",
+    "EZVK (Evangelische Zusatzversorgungskasse)",
+    "Swiss Life Sammelstiftung",
+    "Irish Life Investment Managers (ILIM)",
+    "Abu Dhabi Pension Fund (ADPF)",
+    "ATP"
+  ],
+  "Dave": [
+    "UBS",
+    "Aegon Group",
+    "Generali Group",
+    "KKR",
+    "Dai-ichi Life Holdings",
+    "Ares Management",
+    "MEAG",
+    "Meiji Yasuda Life Insurance",
+    "Aviva",
+    "Samsung Group",
+    "Banco Santander",
+    "KBC Group",
+    "Robeco Group",
+    "WTW",
+    "Talanx Group",
+    "F Van Lanschot",
+    "Storebrand Group",
+    "Groupama Asset Management",
+    "Advent International",
+    "AXA IM ALTS",
+    "Clearlake Capital Group",
+    "Bain Capital",
+    "Genstar Capital",
+    "Barings",
+    "New Mountain Capital",
+    "Ardian",
+    "HarbourVest Partners",
+    "Astorg",
+    "Antares Capital",
+    "Hamilton Lane",
+    "Eurazeo",
+    "Värde Partners",
+    "Morgan Stanley Investment Management",
+    "Bregal Investments",
+    "Park Square Capital"
+  ],
+  "Jake": [
+    "Capital Group",
+    "Allianz Group",
+    "Amundi",
+    "AXA Group",
+    "Deutsche Bank",
+    "Sumitomo Mitsui Trust Holdings",
+    "HSBC Holdings",
+    "Nippon Life Insurance",
+    "Asset Management One",
+    "LBBW",
+    "M&G Investments",
+    "TD Global Invest. Solutions",
+    "Janus Henderson Group",
+    "Swiss Life Asset Managers",
+    "Zurcher Kantonalbank",
+    "Zurich Financial Services",
+    "St. James's Place",
+    "Anima Holding Italy",
+    "Royal London Group",
+    "CVC Capital Partners",
+    "OFI AM",
+    "Caixabank",
+    "Danske Bank",
+    "Man Group",
+    "Mn Services",
+    "Partners Group",
+    "ASR",
+    "Bayerischen Landesbank",
+    "OP Financial Group",
+    "LGT Capital Partners",
+    "EQT",
+    "Nordic Capital",
+    "Golub Capital",
+    "Hayfin Capital Management",
+    "Hillhouse Capital Group",
+    "Accel-KKR",
+    "AllianceBernstein",
+    "Crestline Investors",
+    "Tikehau Capital",
+    "CVC Credit Partners",
+    "Aberdeen Investments",
+    "Lombard Odier Investment Mgmt",
+    "AXA Investment Managers",
+    "Wells Fargo",
+    "Groupe BPCE / Natixis",
+    "Saudi National Bank",
+    "Truist Financial",
+    "ASN Bank",
+    "WSP Global",
+    "Pollination",
+    "2° Investing Initiative",
+    "Alvarez & Marsal (ESG)",
+    "Milbank",
+    "Vedder Price",
+    "Covington & Burling",
+    "Gibson Dunn",
+    "Taylor Wessing",
+    "Clyde & Co",
+    "Osler Hoskin & Harcourt",
+    "Fasken",
+    "August & Debouzy",
+    "Elvinger Hoss Prussen",
+    "Texas Teachers Retirement System",
+    "Virginia Retirement System",
+    "Michigan Retirement Systems",
+    "Maryland State Retirement",
+    "PSP Investments",
+    "Borders to Coast Pension Partnership",
+    "Strathclyde Pension Fund",
+    "PME (Metaalindustrie)",
+    "AP3 (Third AP Fund)",
+    "Agirc-Arrco",
+    "Hassana Investment (GOSI)",
+    "Sanabil Investments (PIF sub)",
+    "Tennessee Consolidated Retirement System",
+    "Kansas Public Employees Retirement System (KPERS)",
+    "Rhode Island Employees Retirement System",
+    "Los Angeles Fire and Police Pensions (LAFPP)",
+    "New York City Board of Education Retirement System (BERS)",
+    "Wyoming Retirement System",
+    "Municipal Employees Pension Plan (MEPP) Saskatchewan",
+    "Pension Protection Fund (PPF)",
+    "BT Pension Scheme (BTPS)",
+    "National Grid UK Pension Scheme",
+    "People's Partnership (The People's Pension)",
+    "Pensioenfonds Horeca & Catering",
+    "Stichting Pensioenfonds Openbaar Vervoer (SPOV)",
+    "AP Pension",
+    "Länsförsäkringar (Sweden)",
+    "LocalTapiola (Finland)",
+    "Préfon-Retraite",
+    "DEVK Versicherungen",
+    "Württembergische Versicherung (W&W Group)",
+    "ASGA Pensionskasse",
+    "Nest Sammelstiftung",
+    "Davy Asset Management",
+    "Public Pension Agency Saudi Arabia (PPA)"
+  ],
+  "Jim": [
+    "State Street Global",
+    "BNP Paribas",
+    "Natixis Investment Managers",
+    "Nuveen",
+    "Brookfield Asset Management",
+    "Manulife",
+    "Mitsubishi UFJ Financial Group",
+    "Macquarie Group",
+    "Union Investment",
+    "Intesa Sanpaolo",
+    "Abrdn",
+    "Zenkyoren",
+    "Shinkin Central Bank",
+    "Baillie Gifford",
+    "Pictet Asset Management",
+    "BMO Wealth Management",
+    "Scotiabank",
+    "SEB",
+    "Resona Holdings",
+    "Landesbank Hessen-Thuringen",
+    "EFG International",
+    "BBVA",
+    "IFM Investors",
+    "BCV",
+    "Mirae Asset Financial Group",
+    "Aon",
+    "IDUNA Gruppe",
+    "Goldman Sachs Asset Management",
+    "HPS Investment Partners",
+    "The Carlyle Group",
+    "Clayton Dubilier & Rice",
+    "Silver Lake",
+    "Pacific Investment Management Company",
+    "Permira Advisers",
+    "Cinven",
+    "Blue Owl Capital",
+    "Bridgepoint",
+    "Pemberton Asset Management",
+    "PAG",
+    "TCV",
+    "MBK Partners",
+    "Liontrust",
+    "Sarasin & Partners",
+    "Sycomore Asset Management",
+    "DWS Group",
+    "Toronto-Dominion Bank",
+    "DZ Bank",
+    "Al Rajhi Bank",
+    "SpareBank 1",
+    "Belfius",
+    "Anthesis Group",
+    "Quantis",
+    "L.E.K. Consulting",
+    "Charles River Associates",
+    "Fried Frank",
+    "Winston & Strawn",
+    "Akin Gump",
+    "Seward & Kissel",
+    "Burges Salmon",
+    "HFW (Holman Fenwick Willan)",
+    "Blake Cassels & Graydon",
+    "Gowling WLG",
+    "Joffe & Associes",
+    "Arendt & Medernach",
+    "Wisconsin Investment Board",
+    "Oregon Investment Council",
+    "PSERS Pennsylvania",
+    "Arizona State Retirement",
+    "BT Pension Scheme",
+    "ACCESS Pool",
+    "Lothian Pension Fund",
+    "bpfBOUW",
+    "AP4 (Fourth AP Fund)",
+    "Bayerische Versorgungskammer (BVK)",
+    "Oman Investment Authority (OIA)",
+    "Georgia Teachers Retirement System",
+    "Montana Board of Investments",
+    "Maine Public Employees Retirement System (MainePERS)",
+    "San Diego City Employees Retirement System (SDCERS)",
+    "Illinois Municipal Retirement Fund (IMRF)",
+    "Vermont Pension Investment Committee (VPIC)",
+    "Manitoba Teachers' Society Pension Plan",
+    "National Employment Savings Trust (NEST)",
+    "Sainsbury's Pension Scheme",
+    "Centrica Pension Scheme",
+    "NOW: Pensions",
+    "Pensioenfonds Vervoer",
+    "Kommunal Landspensjonskasse (KLP)",
+    "Sampension",
+    "Fjärde AP-fonden (AP4)",
+    "Malakoff Humanis",
+    "Pro BTP",
+    "Signal Iduna",
+    "Provinzial Rheinland",
+    "Pensionskasse der Swisscom",
+    "Ethos Foundation / Ethos Services",
+    "Ethias",
+    "Social Insurance Investment Portfolio (Bahrain)"
+  ],
+  "Lucas": [
+    "J.P. Morgan Chase",
+    "Legal & General Group",
+    "Wellington Management",
+    "Sun Life Financial",
+    "Schroders",
+    "Fidelity International",
+    "Royal Bank of Canada",
+    "Nomura Asset Management",
+    "Credit Suisse",
+    "Nordea",
+    "Societe Generale",
+    "Prudential",
+    "Dekabank Group",
+    "Sumitomo Life Insurance",
+    "CIBC Asset Management",
+    "Achmea",
+    "Swedbank",
+    "Union Bancaire Privee",
+    "Vontobel Asset Management",
+    "Credit Mutuel",
+    "Sumitomo Mitsui Financial Group",
+    "Rothschild",
+    "Swiss Re",
+    "KB Asset Management",
+    "Svenska Handelsbanken",
+    "Hg",
+    "Intermediate Capital Group",
+    "Hellman & Friedman",
+    "PGIM Private Alternatives",
+    "Francisco Partners",
+    "GTCR",
+    "Platinum Equity",
+    "Adams Street Partners",
+    "Arcmont Asset Management",
+    "Veritas Capital",
+    "Apax Partners",
+    "GoldenTree Asset Management",
+    "Thomas H. Lee Partners",
+    "PAI Partners",
+    "EIG",
+    "Albacore Capital Group",
+    "IK Partners",
+    "Altor Equity Partners",
+    "Carmignac",
+    "Flossbach von Storch",
+    "Bank of Nova Scotia",
+    "KfW",
+    "Abu Dhabi Commercial Bank",
+    "Jyske Bank",
+    "Fifth Third Bancorp",
+    "DNV",
+    "Vivid Economics (McKinsey)",
+    "Morrow Sodali",
+    "Strategy& (PwC)",
+    "Cornerstone Research",
+    "Schulte Roth & Zabel",
+    "Vinson & Elkins",
+    "Shearman & Sterling (A&O Shearman)",
+    "Troutman Pepper",
+    "Bird & Bird",
+    "Reed Smith",
+    "Bennett Jones",
+    "Al Tamimi & Company",
+    "Al Busaidy Mansoor Jamal",
+    "Fidal",
+    "Wildgen",
+    "New Jersey Division of Investment",
+    "Ohio Public Employees Retirement",
+    "NYC Employees Retirement System",
+    "Iowa Public Employees Retirement",
+    "Investment Management Corp Ontario (IMCO)",
+    "LGPS Central",
+    "LGPS Wales (Wales Pension Partnership)",
+    "London Pensions Fund Authority (LPFA)",
+    "PFZW",
+    "Keva",
+    "Caisse des Dépôts",
+    "VBL (Versorgungsanstalt)",
+    "Mumtalakat (Bahrain)",
+    "South Carolina Retirement System",
+    "Nevada Public Employees Retirement System (NVPERS)",
+    "New Hampshire Retirement System",
+    "Sacramento County Employees' Retirement System (SCERS)",
+    "Chicago Teachers Pension Fund (CTPF)",
+    "CAAT Pension Plan",
+    "Régime de retraite du personnel d'encadrement (RRPE)",
+    "Shell Contributory Pension Fund",
+    "Marks & Spencer Pension Scheme",
+    "Tesco PLC Pension Scheme",
+    "Scottish Widows Master Trust",
+    "Pensioenfonds Medisch Specialisten",
+    "Statens pensjonsfond utland (GPFG / Oil Fund)",
+    "Lærernes Pension (LP)",
+    "SPP Fonder",
+    "AG2R La Mondiale",
+    "Klesia",
+    "R+V Versicherung",
+    "Sparkassen-Versicherung",
+    "Bâloise (Baloise Sammelstiftung)",
+    "Ireland Strategic Investment Fund (ISIF)",
+    "Integrale",
+    "Goodwin Procter",
+    "Squire Patton Boggs",
+    "CMS Francis Lefebvre",
+    "Kohlberg & Company",
+    "MetLife Investment Management",
+    "H.I.G. Capital",
+    "Fiera Capital",
+    "Desjardins Group",
+    "Healthcare of Ontario Pension (HOOPP)"
+  ],
+};
+
+
+// ── ESG TRIGGER KEYWORDS (based on your proven Google Alerts query) ──
+// Matches: "New fund" OR "secondaries" OR "growing alternatives" OR
+// "Growing credit" OR "growing private equity" OR "impact fund" OR
+// "Article 8" OR "Article 9" OR "SDG" OR "head of ESG" OR
+// "Sustainable investment" OR "responsible investment" etc.
+const ESG_TRIGGER_KEYWORDS = [
+  // Fund & strategy signals
+  'new fund','fund launch','new strategy','fund raise','fundraising',
+  'secondaries','secondary fund','growing alternatives','alternative investment',
+  'growing credit','private credit','growing private equity','private equity',
+  'growing private markets','private markets','impact fund','impact investing',
+  // ESG specific
+  'article 8','article 9','sfdr','tcfd','csrd','sdg','un sdg',
+  'new sustainability leadership','head of esg','chief sustainability officer',
+  'sustainability director','head of responsible investment',
+  'sustainable investment','responsible investment','esg strategy',
+  'esg commitment','esg framework','esg report','esg rating','esg score',
+  'net zero','net-zero','carbon neutral','decarboni','climate finance',
+  'green bond','social bond','sustainability bond','impact bond',
+  'stewardship','shareholder engagement','proxy voting',
+  'science based target','sbti','paris agreement',
+  'scope 1','scope 2','scope 3','biodiversity','nature positive',
+  // Broader ESG signals
+  'esg','environmental social','sustainability report',
+  'responsible finance','impact investment','climate risk',
 ];
 
-// ── ESG HIGH-CONFIDENCE KEYWORDS ──
-const ESG_KEYWORDS = [
-  'esg','environmental social governance','sustainability report','net zero',
-  'net-zero','carbon neutral','carbon offset','decarboni','responsible investment',
-  'impact investing','impact fund','sfdr','tcfd','csrd','article 8','article 9',
-  'taxonomy regulation','pri signatory','un sdg','sustainable development goal',
-  'stewardship code','shareholder engagement','proxy voting','green bond',
-  'social bond','sustainability bond','esg rating','esg score','climate risk',
-  'climate finance','scope 1','scope 2','scope 3','head of esg',
-  'chief sustainability','sustainability director','esg framework','esg policy',
-  'esg strategy','esg commitment','paris agreement','science based target',
-  'sbti','just transition','biodiversity','nature positive','esg report',
-  'sustainable invest','impact report','esg data','esg integration',
-];
-
-// ── NEWS QUERIES ──
+// ── NEWS QUERIES using your proven format ──
+// Broad ESG sector queries — company matching happens in code
 const DIGEST_QUERIES = [
-  'ESG investment sustainability finance',
-  'responsible investment impact fund',
-  'net zero carbon climate investment',
-  'SFDR TCFD CSRD sustainable finance',
-  'ESG stewardship shareholder engagement',
-  'sustainability ESG report strategy fund',
+  '"new fund" OR "impact fund" OR "Article 8" OR "Article 9" ESG finance',
+  '"responsible investment" OR "sustainable investment" OR "head of ESG" finance',
+  '"secondaries" OR "private credit" OR "private equity" ESG sustainability',
+  '"net zero" OR "carbon neutral" OR "climate finance" investment fund',
+  '"SFDR" OR "TCFD" OR "CSRD" OR "SDG" asset manager investment',
+  '"stewardship" OR "shareholder engagement" OR "ESG rating" finance',
 ];
-
-app.use(cors());
 
 // ── HEALTH CHECK ──
 app.get('/', (_req, res) => {
+  const emails = getAEEmails();
   res.json({
     status: 'ESG Signal proxy OK',
-    digest_schedule: 'Daily at 07:00 UTC',
-    companies_tracked: COMPANY_550.length,
+    schedule: 'Daily digest at 07:00 UTC (12:30 PM IST)',
+    ae_assignments: Object.fromEntries(
+      Object.entries(AE_ASSIGNMENTS).map(([ae,cos])=>[ae,{
+        companies: cos.length,
+        email: emails[ae] ? 'configured' : 'not set yet'
+      }])
+    ),
     time: new Date().toISOString()
   });
 });
 
-// ── PROXY (existing — unchanged) ──
+// ── PROXY ENDPOINT (unchanged — tool still works) ──
 app.get('/news', async (req, res) => {
   if (!NEWS_API_KEY) return res.status(500).json({ error: 'NEWS_API_KEY not set' });
   const { q, pageSize = '10', from } = req.query;
   if (!q) return res.status(400).json({ error: 'Missing q' });
   try {
-    const params = new URLSearchParams({ q, language:'en', pageSize, sortBy:'publishedAt', apiKey:NEWS_API_KEY });
+    const params = new URLSearchParams({
+      q, language:'en', pageSize, sortBy:'publishedAt', apiKey:NEWS_API_KEY
+    });
     if (from) params.append('from', from);
     const r = await fetch(`https://newsapi.org/v2/everything?${params}`);
     const d = await r.json();
@@ -616,19 +656,21 @@ app.get('/news', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ── MANUAL TEST TRIGGER ──
-// Visit: https://your-render-url.onrender.com/trigger-digest?secret=esg-trigger-2025
+// ── MANUAL TRIGGER ──
+// Test all:  /trigger-digest?secret=esg-trigger-2025
+// Test one:  /trigger-digest?secret=esg-trigger-2025&ae=Jake
 app.get('/trigger-digest', async (req, res) => {
   if (req.query.secret !== TRIGGER_SECRET) return res.status(401).json({ error: 'Wrong secret' });
-  res.json({ message: 'Digest running in background — check your email in ~2 minutes' });
-  runDailyDigest();
+  const ae = req.query.ae || 'all';
+  res.json({ message: `Digest triggered for "${ae}" — check email in ~2 minutes` });
+  runDailyDigest(ae);
 });
 
-// ════════════════════════════════════
-//  FETCH & MATCH LOGIC
-// ════════════════════════════════════
-async function fetchAndMatch() {
-  const from = new Date(Date.now() - 24*60*60*1000).toISOString().split('T')[0];
+// ════════════════════════════════
+//  FETCH LAST 24H NEWS
+// ════════════════════════════════
+async function fetchAllNews() {
+  const from = new Date(Date.now()-24*60*60*1000).toISOString().split('T')[0];
   const allArticles = [];
 
   for (const query of DIGEST_QUERIES) {
@@ -640,147 +682,204 @@ async function fetchAndMatch() {
       const r = await fetch(`https://newsapi.org/v2/everything?${params}`);
       const d = await r.json();
       if (d.articles) allArticles.push(...d.articles);
-      await new Promise(res => setTimeout(res, 300)); // small delay between calls
+      await new Promise(r=>setTimeout(r,350)); // avoid rate limiting
     } catch(e) { console.error(`Query failed: ${query}`, e.message); }
   }
 
   // Deduplicate by URL
   const seen = new Set();
-  const unique = allArticles.filter(a => {
-    if (!a.title || a.title === '[Removed]' || !a.url || seen.has(a.url)) return false;
+  return allArticles.filter(a=>{
+    if (!a.title||a.title==='[Removed]'||!a.url||seen.has(a.url)) return false;
     seen.add(a.url); return true;
   });
-
-  console.log(`Fetched ${unique.length} unique articles`);
-
-  // Match: MUST have ESG keyword AND 550 company name
-  const matches = [];
-  for (const article of unique) {
-    const text = ((article.title||'')+'|'+(article.description||'')+'|'+(article.content||'')).toLowerCase();
-
-    const esgMatch = ESG_KEYWORDS.find(kw => text.includes(kw));
-    if (!esgMatch) continue;
-
-    const companyMatch = COMPANY_550.find(co => text.includes(co.toLowerCase()));
-    if (!companyMatch) continue;
-
-    matches.push({ ...article, _esgKeyword: esgMatch, _company: companyMatch });
-  }
-
-  return matches;
 }
 
-// ════════════════════════════════════
+// ════════════════════════════════
+//  MATCH FOR ONE AE
+// ════════════════════════════════
+function matchForAE(articles, aeCompanies) {
+  const matches = [];
+  for (const article of articles) {
+    const text = ((article.title||'')+'|'+(article.description||'')+'|'+(article.content||'')).toLowerCase();
+
+    // Must match ESG trigger keyword
+    const esgMatch = ESG_TRIGGER_KEYWORDS.find(kw=>text.includes(kw.toLowerCase()));
+    if (!esgMatch) continue;
+
+    // Must mention one of this AE's companies
+    const companyMatch = aeCompanies.find(co=>text.includes(co.toLowerCase()));
+    if (!companyMatch) continue;
+
+    matches.push({ ...article, _trigger: esgMatch, _company: companyMatch });
+  }
+  // Sort by most relevant company first
+  return matches.sort((a,b)=>a._company.localeCompare(b._company));
+}
+
+// ════════════════════════════════
 //  BUILD EMAIL HTML
-// ════════════════════════════════════
-function buildEmailHtml(matches) {
-  const dateStr = new Date().toLocaleDateString('en-GB', {
+// ════════════════════════════════
+function buildEmail(aeName, matches, totalCompanies) {
+  const dateStr = new Date().toLocaleDateString('en-GB',{
     weekday:'long', day:'numeric', month:'long', year:'numeric'
   });
 
-  const header = `
-    <div style="background:#0d1421;padding:24px 28px;border-radius:10px 10px 0 0;">
-      <h1 style="color:#10d4a8;margin:0 0 4px;font-size:22px;font-family:sans-serif;">◈ ESG Signal</h1>
-      <p style="color:#8ba0bc;margin:0;font-size:13px;font-family:sans-serif;">Daily Digest · ${dateStr}</p>
+  const headerHtml = `
+    <div style="background:#0d1421;padding:22px 28px;border-radius:10px 10px 0 0;">
+      <h1 style="color:#10d4a8;margin:0 0 3px;font-size:20px;font-family:sans-serif;">◈ ESG Signal</h1>
+      <p style="color:#8ba0bc;margin:0;font-size:12px;font-family:sans-serif;">
+        Daily Digest · ${dateStr} · ${aeName}'s accounts (${totalCompanies} companies)
+      </p>
     </div>`;
 
   if (matches.length === 0) {
-    return `<div style="max-width:600px;margin:0 auto;font-family:sans-serif;">
-      ${header}
-      <div style="background:#fff;padding:24px 28px;border-radius:0 0 10px 10px;border:1px solid #e5e7eb;border-top:none;">
-        <p style="color:#6b7280;font-size:14px;margin:0;">No high-confidence ESG matches found involving your 550 target companies in the last 24 hours. Check back tomorrow!</p>
+    return `<div style="max-width:620px;margin:0 auto;font-family:sans-serif;">
+      ${headerHtml}
+      <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:24px 28px;">
+        <p style="color:#6b7280;font-size:14px;margin:0;line-height:1.6;">
+          No ESG or sustainability triggers found for your ${totalCompanies} accounts in the last 24 hours.<br>
+          Check back tomorrow or open the <a href="https://rasikapinglikar-debug.github.io/esg-signal" style="color:#10d4a8;">ESG Signal tool</a> to search manually.
+        </p>
       </div>
     </div>`;
   }
 
-  const cards = matches.map(a => `
-    <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:14px;border-left:4px solid #10d4a8;background:#fff;">
+  const cards = matches.map(a=>`
+    <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:12px;border-left:4px solid #10d4a8;background:#fff;">
       <div style="margin-bottom:8px;">
-        <span style="background:#d1fae5;color:#065f46;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;font-family:sans-serif;margin-right:6px;">🏢 ${a._company}</span>
-        <span style="background:#dbeafe;color:#1e40af;padding:2px 9px;border-radius:20px;font-size:11px;font-family:sans-serif;">${a._esgKeyword}</span>
+        <span style="background:#d1fae5;color:#065f46;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;font-family:sans-serif;">
+          🏢 ${a._company}
+        </span>
+        <span style="background:#ede9fe;color:#5b21b6;padding:2px 9px;border-radius:20px;font-size:11px;font-family:sans-serif;margin-left:5px;">
+          ${a._trigger}
+        </span>
       </div>
       <h3 style="margin:0 0 6px;font-size:15px;color:#111;font-family:sans-serif;line-height:1.4;">
         <a href="${a.url}" style="color:#111;text-decoration:none;">${a.title}</a>
       </h3>
-      <p style="margin:0 0 12px;font-size:13px;color:#555;line-height:1.5;font-family:sans-serif;">${a.description||''}</p>
+      <p style="margin:0 0 12px;font-size:13px;color:#555;line-height:1.5;font-family:sans-serif;">
+        ${a.description||''}
+      </p>
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
         <span style="font-size:12px;color:#9ca3af;font-family:sans-serif;">
           📰 ${a.source?.name||'Unknown'} · ${new Date(a.publishedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
         </span>
-        <a href="${a.url}" style="background:#10d4a8;color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;text-decoration:none;font-weight:600;font-family:sans-serif;">Read article →</a>
+        <a href="${a.url}" style="background:#10d4a8;color:#fff;padding:6px 14px;border-radius:6px;font-size:12px;text-decoration:none;font-weight:600;font-family:sans-serif;">
+          Read article →
+        </a>
       </div>
     </div>`).join('');
 
   return `
-  <div style="max-width:600px;margin:0 auto;font-family:sans-serif;background:#f9fafb;padding:20px;">
-    ${header}
-    <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;padding:20px 28px 8px;margin-bottom:16px;">
-      <p style="margin:0;font-size:14px;color:#374151;">
-        🎯 Found <strong style="color:#10d4a8;">${matches.length} high-confidence ESG alert${matches.length>1?'s':''}</strong>
-        involving your 550 target companies in the last 24 hours.
+  <div style="max-width:620px;margin:0 auto;font-family:sans-serif;background:#f9fafb;padding:16px;">
+    ${headerHtml}
+    <div style="background:#fff;border:1px solid #e5e7eb;border-top:none;padding:16px 28px 12px;">
+      <p style="margin:0;font-size:14px;color:#374151;font-family:sans-serif;">
+        🎯 <strong style="color:#10d4a8;">${matches.length} ESG trigger${matches.length>1?'s':''}</strong>
+        found across your accounts in the last 24 hours.
       </p>
     </div>
-    ${cards}
-    <div style="text-align:center;padding:20px;color:#9ca3af;font-size:11px;font-family:sans-serif;">
-      ESG Signal · Daily Digest · Verified articles from NewsAPI · Always verify before outreach<br><br>
-      <a href="https://rasikapinglikar-debug.github.io/esg-signal" style="color:#10d4a8;text-decoration:none;">Open ESG Signal Tool →</a>
+    <div style="padding:16px 0;">
+      ${cards}
+    </div>
+    <div style="text-align:center;padding:16px;color:#9ca3af;font-size:11px;font-family:sans-serif;border-top:1px solid #e5e7eb;">
+      ESG Signal · Personalised for ${aeName} · Verified articles · Always verify before outreach<br><br>
+      <a href="https://rasikapinglikar-debug.github.io/esg-signal" style="color:#10d4a8;text-decoration:none;">
+        Open ESG Signal Tool →
+      </a>
     </div>
   </div>`;
 }
 
-// ════════════════════════════════════
-//  SEND EMAIL via Resend
-// ════════════════════════════════════
-async function sendDigestEmail(matches) {
-  if (!RESEND_API_KEY) { console.log('⚠ RESEND_API_KEY not set — skipping email send'); return; }
-  if (!ALERT_EMAIL)    { console.log('⚠ ALERT_EMAIL not set — skipping email send'); return; }
+// ════════════════════════════════
+//  SEND EMAIL VIA RESEND
+// ════════════════════════════════
+async function sendEmail(toEmail, aeName, matches, totalCompanies) {
+  if (!RESEND_API_KEY || !toEmail) return;
 
-  const dateStr = new Date().toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+  const dateStr = new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
   const subject = matches.length > 0
-    ? `🌿 ESG Signal: ${matches.length} alert${matches.length>1?'s':''} today — ${dateStr}`
-    : `ESG Signal: No alerts today — ${dateStr}`;
+    ? `🌿 ESG Signal [${aeName}]: ${matches.length} trigger${matches.length>1?'s':''} today — ${dateStr}`
+    : `ESG Signal [${aeName}]: No triggers today — ${dateStr}`;
 
   try {
     const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${RESEND_API_KEY}` },
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${RESEND_API_KEY}`},
       body: JSON.stringify({
         from: FROM_EMAIL,
-        to: [ALERT_EMAIL],
+        to: [toEmail],
         subject,
-        html: buildEmailHtml(matches),
+        html: buildEmail(aeName, matches, totalCompanies),
       })
     });
     const d = await r.json();
-    if (d.id) console.log(`✅ Digest sent! ID: ${d.id} | Matches: ${matches.length}`);
-    else console.error('❌ Resend error:', JSON.stringify(d));
-  } catch(e) { console.error('❌ Email send failed:', e.message); }
+    if (d.id) console.log(`✅ Sent to ${aeName} (${toEmail}): ${matches.length} matches`);
+    else console.error(`❌ Failed for ${aeName}:`, JSON.stringify(d));
+  } catch(e) { console.error(`❌ Email error for ${aeName}:`, e.message); }
 }
 
-// ════════════════════════════════════
+// ════════════════════════════════
 //  MAIN DIGEST RUNNER
-// ════════════════════════════════════
-async function runDailyDigest() {
-  console.log(`[${new Date().toISOString()}] Starting daily ESG digest…`);
+// ════════════════════════════════
+async function runDailyDigest(target = 'all') {
+  console.log(`[${new Date().toISOString()}] Running digest — target: ${target}`);
+  const emails = getAEEmails();
+
   try {
-    const matches = await fetchAndMatch();
-    console.log(`Matched: ${matches.length} articles`);
-    matches.forEach(m => console.log(`  → ${m._company} | ${m._esgKeyword} | ${m.title}`));
-    await sendDigestEmail(matches);
-  } catch(e) { console.error('Digest runner error:', e.message); }
+    // Fetch all news once — then filter per AE
+    const articles = await fetchAllNews();
+    console.log(`Fetched ${articles.length} unique articles`);
+
+    // Determine which AEs to run
+    const aesToRun = target === 'all'
+      ? Object.keys(AE_ASSIGNMENTS)
+      : [target].filter(ae=>AE_ASSIGNMENTS[ae]);
+
+    for (const ae of aesToRun) {
+      const email = emails[ae];
+      if (!email) {
+        console.log(`⏭ Skipping ${ae} — no email set (add ${ae.toUpperCase()}_EMAIL in Render env vars)`);
+        continue;
+      }
+      const companies = AE_ASSIGNMENTS[ae];
+      const matches = matchForAE(articles, companies);
+      console.log(`${ae}: ${matches.length} matches`);
+      matches.forEach(m=>console.log(`   → ${m._company} | ${m._trigger} | ${m.title.substring(0,60)}`));
+      await sendEmail(email, ae, matches, companies.length);
+      await new Promise(r=>setTimeout(r,500)); // small delay between emails
+    }
+
+    // Also send manager digest if MANAGER_EMAIL is set
+    const managerEmail = process.env.MANAGER_EMAIL;
+    if (managerEmail && target === 'all') {
+      // Combine all matches for manager view
+      const allMatches = [];
+      const seen = new Set();
+      for (const ae of Object.keys(AE_ASSIGNMENTS)) {
+        const matches = matchForAE(articles, AE_ASSIGNMENTS[ae]);
+        for (const m of matches) {
+          if (!seen.has(m.url)) { seen.add(m.url); allMatches.push({...m, _ae: ae}); }
+        }
+      }
+      await sendEmail(managerEmail, 'Manager (All AEs)', allMatches, 542);
+    }
+
+  } catch(e) { console.error('Digest error:', e.message); }
 }
 
-// ════════════════════════════════════
-//  SCHEDULE — every day at 07:00 UTC
-//  = 07:30 IST / 08:00 CET / 07:00 GMT
-// ════════════════════════════════════
+// ════════════════════════════════
+//  SCHEDULE: 07:00 UTC daily
+//  = 12:30 PM IST / 08:00 AM BST
+// ════════════════════════════════
 cron.schedule('0 7 * * *', () => {
-  console.log('⏰ Cron: running daily digest');
-  runDailyDigest();
+  console.log('⏰ Cron fired: running daily digest');
+  runDailyDigest('all');
 }, { timezone: 'UTC' });
 
-console.log(`✅ ESG Signal proxy running on port ${PORT}`);
-console.log(`✅ Daily digest scheduled: 07:00 UTC`);
-console.log(`✅ Tracking ${COMPANY_550.length} companies`);
+console.log(`✅ ESG Signal proxy on port ${PORT}`);
+console.log(`✅ Daily digest: 07:00 UTC (12:30 PM IST)`);
+console.log(`✅ AEs tracked: ${Object.keys(AE_ASSIGNMENTS).join(', ')}`);
+console.log(`✅ Total companies: ${Object.values(AE_ASSIGNMENTS).reduce((s,a)=>s+a.length,0)}`);
 
-app.listen(PORT, () => {});
+app.listen(PORT, ()=>{});
